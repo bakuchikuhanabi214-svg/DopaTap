@@ -122,12 +122,21 @@ async function ranking(req, env, ctx) {
   return json({ ok: true, period: per, list: top, me });
 }
 
+// つながっている D1 を 見つける（変数名は DB でも dopatap でも、ほかの名前でも OK）
+function findDB(env) {
+  if (env.DB && typeof env.DB.prepare === 'function') return env.DB;
+  if (env.dopatap && typeof env.dopatap.prepare === 'function') return env.dopatap;
+  for (const k of Object.keys(env)) { const v = env[k]; if (v && typeof v.prepare === 'function' && typeof v.batch === 'function') return v; }
+  return null;
+}
+
 export default {
-  async fetch(req, env, ctx) {
+  async fetch(req, env0, ctx) {
+    const db = findDB(env0), env = { ...env0, DB: db, ASSETS: env0.ASSETS };
     const url = new URL(req.url), path = url.pathname;
     if (!path.startsWith('/api/')) return env.ASSETS.fetch(req);
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
-    if (!env.DB) return json({ ok: false, error: 'db_not_bound' }, 503);
+    if (!db) return json({ ok: false, error: 'db_not_bound' }, 503);
     try {
       await ensure(env.DB);
       if (path === '/api/start' && req.method === 'POST') return await start(req, env);
